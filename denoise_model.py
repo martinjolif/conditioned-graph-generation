@@ -60,12 +60,12 @@ class SinusoidalPositionEmbeddings(nn.Module):
 
 # Denoise model
 class DenoiseNN(nn.Module):
-    def __init__(self, input_dim, hidden_dim, n_layers, n_cond, d_cond):
+    def __init__(self, input_dim, hidden_dim, n_layers, cond_input_dim, d_cond):
         super(DenoiseNN, self).__init__()
         self.n_layers = n_layers
-        self.n_cond = n_cond
+        self.cond_input_dim = cond_input_dim
         self.cond_mlp = nn.Sequential(
-            nn.Linear(n_cond, d_cond),
+            nn.Linear(cond_input_dim, d_cond),
             nn.ReLU(),
             nn.Linear(d_cond, d_cond),
         )
@@ -88,7 +88,7 @@ class DenoiseNN(nn.Module):
         self.tanh = nn.Tanh()
 
     def forward(self, x, t, cond):
-        cond = torch.reshape(cond, (-1, self.n_cond))
+        cond = torch.reshape(cond, (-1, self.cond_input_dim))
         cond = torch.nan_to_num(cond, nan=-100.0)
         cond = self.cond_mlp(cond)
         t = self.time_mlp(t)

@@ -90,13 +90,16 @@ parser.add_argument('--hidden-dim-denoise', type=int, default=512, help="Hidden 
 parser.add_argument('--n-layers_denoise', type=int, default=3, help="Number of layers in the denoising model (default: 3)")
 
 # Flag to toggle training of the autoencoder (VGAE)
-parser.add_argument('--train-autoencoder', action='store_false', default=True, help="Flag to enable/disable autoencoder (VGAE) training (default: enabled)")
+parser.add_argument('--train-autoencoder', action='store_false', default=True, help="Flag to enable/disable autoencoder (VGAE) training (default: True)")
 
 # Flag to toggle training of the diffusion-based denoising model
-parser.add_argument('--train-denoiser', action='store_true', default=True, help="Flag to enable/disable denoiser training (default: enabled)")
+parser.add_argument('--train-denoiser', action='store_true', default=True, help="Flag to enable/disable denoiser training (default: True)")
 
 # Dimensionality of conditioning vectors for conditional generation
 parser.add_argument('--dim-condition', type=int, default=128, help="Dimensionality of conditioning vectors for conditional generation (default: 128)")
+
+# Method used to embed the text (extract_numbers: to only extract the numbers from the text, clip_text_encoder: to encode the text with the clip text encoder)
+parser.add_argument('--text-embedding-method', type=str, default='extract_numbers', help="Method to embed the text (extract_numbers: to only extract the numbers from the text, clip_text_encoder: to encode the text with the clip text encoder)")
 
 # Number of conditions used in conditional vector (number of properties)
 parser.add_argument('--n-condition', type=int, default=7, help="Number of distinct condition properties used in conditional vector (default: 7)")
@@ -106,9 +109,9 @@ args = parser.parse_args()
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 # preprocess train data, validation data and test data. Only once for the first time that you run the code. Then the appropriate .pt files will be saved and loaded.
-trainset = preprocess_dataset("train", args.n_max_nodes, args.spectral_emb_dim)
-validset = preprocess_dataset("valid", args.n_max_nodes, args.spectral_emb_dim)
-testset = preprocess_dataset("test", args.n_max_nodes, args.spectral_emb_dim)
+trainset = preprocess_dataset("train", args.n_max_nodes, args.spectral_emb_dim, args.text_embedding_method)
+validset = preprocess_dataset("valid", args.n_max_nodes, args.spectral_emb_dim, args.text_embedding_method)
+testset = preprocess_dataset("test", args.n_max_nodes, args.spectral_emb_dim, args.text_embedding_method)
 
 
 
@@ -177,8 +180,9 @@ if args.train_autoencoder:
                 'optimizer' : optimizer.state_dict(),
             }, 'autoencoder.pth.tar')
 else:
-    checkpoint = torch.load('autoencoder.pth.tar')
+    checkpoint = torch.load('autoencoder.pth.tar', weights_only=False)
     autoencoder.load_state_dict(checkpoint['state_dict'])
+    print(f"Autoencoder model loaded from file")
 
 autoencoder.eval()
 
@@ -201,7 +205,7 @@ sqrt_one_minus_alphas_cumprod = torch.sqrt(1. - alphas_cumprod)
 posterior_variance = betas * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
 
 # initialize denoising model
-denoise_model = DenoiseNN(input_dim=args.latent_dim, hidden_dim=args.hidden_dim_denoise, n_layers=args.n_layers_denoise, n_cond=args.n_condition, d_cond=args.dim_condition).to(device)
+denoise_model = DenoiseNN(input_dim=args.latent_dim, hidden_dim=args.hidden_dim_denoise, n_layers=args.n_layers_denoise, cond_input_dim=args.n_condition, d_cond=args.dim_condition).to(device)
 optimizer = torch.optim.Adam(denoise_model.parameters(), lr=args.lr)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
 
@@ -249,6 +253,7 @@ if args.train_denoiser:
 else:
     checkpoint = torch.load('denoise_model.pth.tar')
     denoise_model.load_state_dict(checkpoint['state_dict'])
+    print(f"Denoising model loaded from file")
 
 denoise_model.eval()
 
@@ -262,7 +267,7 @@ with open("output.csv", "w", newline="") as csvfile:
     for k, data in enumerate(tqdm(test_loader, desc='Processing test set',)):
         data = data.to(device)
         
-        stat = data.stats
+        stat = data.stats  #size of (batch_size, 7) for the original text embedding
         bs = stat.size(0)
 
         graph_ids = data.filename
