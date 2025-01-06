@@ -17,8 +17,9 @@ from tqdm import tqdm
 import scipy.sparse as sparse
 from torch_geometric.data import Data
 
+from bert_text_encoder import bert_encoding_from_graph_filename, bert_encoding_from_graph_text_description
 from extract_feats import extract_feats, extract_numbers
-from clip_text_encoder import extract_encoding_from_graph_filename, extract_encoding_from_graph_text_description
+from clip_text_encoder import clip_encoding_from_graph_text_description, clip_encoding_from_graph_filename
 
 
 def preprocess_dataset(dataset, n_max_nodes, spectral_emb_dim, text_embedding_method):
@@ -44,7 +45,10 @@ def preprocess_dataset(dataset, n_max_nodes, spectral_emb_dim, text_embedding_me
                     feats_stats = extract_numbers(desc)
                     feats_stats = torch.FloatTensor(feats_stats).unsqueeze(0) #shape (1,7) in original conditioning
                 elif text_embedding_method == "clip_text_encoder":
-                    feats_stats = extract_encoding_from_graph_text_description(desc)
+                    feats_stats = clip_encoding_from_graph_text_description(desc)
+                    feats_stats = torch.FloatTensor(feats_stats).unsqueeze(0)
+                elif text_embedding_method == "bert_text_encoder":
+                    feats_stats = bert_encoding_from_graph_text_description(desc)
                     feats_stats = torch.FloatTensor(feats_stats).unsqueeze(0)
 
                 data_lst.append(Data(stats=feats_stats, filename = graph_id))
@@ -139,7 +143,10 @@ def preprocess_dataset(dataset, n_max_nodes, spectral_emb_dim, text_embedding_me
                     feats_stats = extract_feats(fstats)
                     feats_stats = torch.FloatTensor(feats_stats).unsqueeze(0) #shape (1,7) in original conditioning
                 elif text_embedding_method == "clip_text_encoder":
-                    feats_stats = extract_encoding_from_graph_filename(fstats)
+                    feats_stats = clip_encoding_from_graph_filename(fstats)
+                    feats_stats = torch.FloatTensor(feats_stats).unsqueeze(0)
+                elif text_embedding_method == "bert_text_encoder":
+                    feats_stats = bert_encoding_from_graph_filename(fstats)
                     feats_stats = torch.FloatTensor(feats_stats).unsqueeze(0)
 
                 data_lst.append(Data(x=x, edge_index=edge_index, A=adj, stats=feats_stats, filename = filen))

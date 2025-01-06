@@ -14,18 +14,18 @@ tokenizer = open_clip.get_tokenizer(model_name)
 model.to(device)
 model.eval()
 
-def extract_encoding_from_graph_text_description(graph_text_description):
+def clip_encoding_from_graph_text_description(graph_text_description):
         "return the embedding of a graph description with a shape of (1,512)"
         text = tokenizer([graph_text_description], context_length=77).to(device)
         x = model.encode_text(text)
 
         return x.detach().cpu().numpy()
 
-def extract_encoding_from_graph_filename(file):
+def clip_encoding_from_graph_filename(file):
         stats = []
         fread = open(file, "r")
         line = fread.read()
         line = line.strip()
-        stats = extract_encoding_from_graph_text_description(line)
+        stats = clip_encoding_from_graph_text_description(line)
         fread.close()
         return stats
