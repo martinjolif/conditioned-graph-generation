@@ -69,10 +69,10 @@ parser.add_argument('--latent-dim', type=int, default=32, help="Dimensionality o
 parser.add_argument('--n-max-nodes', type=int, default=50, help="Possible maximum number of nodes in graphs (default: 50)")
 
 # Number of layers in the encoder network
-parser.add_argument('--n-layers-encoder', type=int, default=2, help="Number of layers in the encoder network (default: 2)")
+parser.add_argument('--n-layers-encoder', type=int, default=3, help="Number of layers in the encoder network (default: 2)")
 
 # Number of layers in the decoder network
-parser.add_argument('--n-layers-decoder', type=int, default=3, help="Number of layers in the decoder network (default: 3)")
+parser.add_argument('--n-layers-decoder', type=int, default=5, help="Number of layers in the decoder network (default: 3)")
 
 # Dimensionality of spectral embeddings for graph structure representation
 parser.add_argument('--spectral-emb-dim', type=int, default=10, help="Dimensionality of spectral embeddings for representing graph structures (default: 10)")
@@ -123,7 +123,6 @@ test_loader = DataLoader(testset, batch_size=args.batch_size, shuffle=False)
 
 # initialize VGAE model
 autoencoder = VariationalAutoEncoder(args.spectral_emb_dim+1, args.hidden_dim_encoder, args.hidden_dim_decoder, args.latent_dim, args.n_layers_encoder, args.n_layers_decoder, args.n_max_nodes).to(device)
-
 optimizer = torch.optim.Adam(autoencoder.parameters(), lr=args.lr)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
 

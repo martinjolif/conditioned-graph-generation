@@ -23,9 +23,11 @@ def bert_encoding_from_graph_text_description(graph_text_description):
 
     with torch.no_grad():
         outputs = model(input_ids, attention_mask=attention_mask)
-        word_embeddings = outputs.last_hidden_state.mean(dim=1)
+        #sentence_embeddings = outputs.last_hidden_state.mean(dim=1)
+        # 0 refers to the first token [CLS] which is a special token used to represent the entire sentence
+        sentence_embeddings = outputs.last_hidden_state[:,0,:]
 
-    return word_embeddings
+    return sentence_embeddings
 
 
 def bert_encoding_from_graph_filename(file):

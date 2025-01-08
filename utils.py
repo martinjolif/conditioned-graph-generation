@@ -52,7 +52,7 @@ def preprocess_dataset(dataset, n_max_nodes, spectral_emb_dim, text_embedding_me
                     feats_stats = torch.FloatTensor(feats_stats).unsqueeze(0)
 
                 data_lst.append(Data(stats=feats_stats, filename = graph_id))
-            fr.close()                    
+            fr.close()
             torch.save(data_lst, filename)
             print(f'Dataset {filename} saved')
 
@@ -97,7 +97,7 @@ def preprocess_dataset(dataset, n_max_nodes, spectral_emb_dim, text_embedding_me
                 
                 CGs = [G.subgraph(c) for c in nx.connected_components(G)]
 
-                # rank connected componets from large to small size
+                # rank connected components from large to small size
                 CGs = sorted(CGs, key=lambda x: x.number_of_nodes(), reverse=True)
 
                 node_list_bfs = []
