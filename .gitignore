@@ -175,3 +175,4 @@ data/
 
 #output file
 output.csv
+*.png
