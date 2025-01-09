@@ -100,120 +100,81 @@ class DenoiseNN(nn.Module):
         return x
 
 
+# Cross-attention block
+class CrossAttention(nn.Module):
+    def __init__(self, embed_size, num_heads):
+        super(CrossAttention, self).__init__()
+        self.multihead_attn = nn.MultiheadAttention(embed_size, num_heads)
+        self.layer_norm = nn.LayerNorm(embed_size)
+
+    def forward(self, query, key, value):
+        # Cross-attention with residual connection
+        attn_output, _ = self.multihead_attn(query, key, value)
+        return self.layer_norm(query + attn_output)
+
+# Denoise model with cross-attention
 class ImprovedDenoiseNN(nn.Module):
-    def __init__(self, input_dim, hidden_dim, n_layers, cond_input_dim, d_cond):
+    def __init__(self, input_dim, hidden_dim, n_layers, cond_input_dim, d_cond, num_heads=4):
         super(ImprovedDenoiseNN, self).__init__()
         self.n_layers = n_layers
         self.cond_input_dim = cond_input_dim
 
-        # Enhanced conditioning network with residual connections
+        # Conditional MLP for the conditioning input
         self.cond_mlp = nn.Sequential(
             nn.Linear(cond_input_dim, d_cond),
-            nn.LayerNorm(d_cond),
-            nn.ReLU(),
-            nn.Linear(d_cond, d_cond),
-            nn.LayerNorm(d_cond),
             nn.ReLU(),
             nn.Linear(d_cond, d_cond),
         )
 
-        # FiLM conditioning layers
-        self.film_gamma = nn.ModuleList([
-            nn.Linear(d_cond, hidden_dim) for _ in range(n_layers - 1)
-        ])
-        self.film_beta = nn.ModuleList([
-            nn.Linear(d_cond, hidden_dim) for _ in range(n_layers - 1)
-        ])
-
+        # Time MLP for the time embeddings
         self.time_mlp = nn.Sequential(
             SinusoidalPositionEmbeddings(hidden_dim),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
             nn.GELU(),
             nn.Linear(hidden_dim, hidden_dim),
         )
 
-        # Cross-attention layers for better conditioning integration
-        self.cross_attention = nn.ModuleList([
-            CrossAttention(hidden_dim, d_cond) for _ in range(n_layers - 1)
-        ])
+        # Input projection layer for the noisy input
+        self.input_proj = nn.Linear(input_dim, hidden_dim)
 
-        # Main network with residual connections
-        mlp_layers = [nn.Linear(input_dim, hidden_dim)]
-        for i in range(n_layers - 2):
-            mlp_layers.append(nn.Linear(hidden_dim, hidden_dim))
-        mlp_layers.append(nn.Linear(hidden_dim, input_dim))
-        self.mlp = nn.ModuleList(mlp_layers)
+        # Cross-attention layers: x (noisy input) attends to (cond + t)
+        self.cross_attention_layers = nn.ModuleList([CrossAttention(hidden_dim, num_heads) for _ in range(n_layers)])
 
-        self.layer_norm = nn.ModuleList([
-            nn.LayerNorm(hidden_dim) for _ in range(n_layers - 1)
-        ])
+        # Linear projection to align concatenated cond + t embeddings
+        self.cond_time_proj = nn.Linear(d_cond * 2, hidden_dim)
 
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.1)
+        # Final MLP to produce the output
+        self.output_proj = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, input_dim),
+        )
 
     def forward(self, x, t, cond):
-        # Preprocess conditioning
+        # Process conditioning input
         cond = torch.reshape(cond, (-1, self.cond_input_dim))
         cond = torch.nan_to_num(cond, nan=-100.0)
         cond = self.cond_mlp(cond)
 
-        # Time embedding
+        # Process time embeddings
         t = self.time_mlp(t)
 
-        # Main forward pass with enhanced conditioning
-        h = x
-        for i in range(self.n_layers - 1):
-            # Residual connection
-            residual = h
+        # Concatenate time and cond information
+        cond_time = torch.cat((cond, t), dim=-1)
 
-            # Apply main layer
-            h = self.mlp[i](h)
+        # Project the noisy input (x)
+        x = self.input_proj(x)
 
-            # Apply FiLM conditioning
-            gamma = self.film_gamma[i](cond)
-            beta = self.film_beta[i](cond)
-            h = h * gamma.unsqueeze(1) + beta.unsqueeze(1)
+        # Cross-attention: x attends to cond_time (as both key and value)
+        for cross_attn_layer in self.cross_attention_layers:
+            x = cross_attn_layer(x.unsqueeze(0), cond_time.unsqueeze(0), cond_time.unsqueeze(0)).squeeze(0)
 
-            # Add time embedding
-            h = h + t
-
-            # Cross-attention with conditioning
-            h = self.cross_attention[i](h, cond)
-
-            # Layer norm and activation
-            h = self.layer_norm[i](h)
-            h = self.relu(h)
-            h = self.dropout(h)
-
-            # Add residual connection
-            if h.shape == residual.shape:
-                h = h + residual
-
-        # Final layer
-        x = self.mlp[self.n_layers - 1](h)
+        # Pass through the output projection
+        x = self.output_proj(x)
         return x
 
 
-class CrossAttention(nn.Module):
-    def __init__(self, hidden_dim, d_cond):
-        super().__init__()
-        self.scale = hidden_dim ** -0.5
-        self.to_q = nn.Linear(hidden_dim, hidden_dim)
-        self.to_k = nn.Linear(d_cond, hidden_dim)
-        self.to_v = nn.Linear(d_cond, hidden_dim)
-        self.to_out = nn.Linear(hidden_dim, hidden_dim)
 
-    def forward(self, x, cond):
-        q = self.to_q(x)
-        k = self.to_k(cond)
-        v = self.to_v(cond)
-
-        attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale
-        attn = torch.softmax(attn, dim=-1)
-
-        out = torch.matmul(attn, v)
-        return self.to_out(out)
 
 
 @torch.no_grad()
