@@ -209,8 +209,8 @@ class VariationalAutoEncoder(nn.Module):
         self.encoder = GATEncoder(input_dim, hidden_dim_enc, hidden_dim_enc, n_layers_enc)
         self.fc_mu = nn.Linear(hidden_dim_enc, latent_dim)
         self.fc_logvar = nn.Linear(hidden_dim_enc, latent_dim)
-        #self.decoder = Decoder(latent_dim, hidden_dim_dec, n_layers_dec, n_max_nodes)
-        self.decoder = ImprovedDecoder(latent_dim, hidden_dim_dec, n_layers_dec, n_max_nodes)
+        self.decoder = Decoder(latent_dim, hidden_dim_dec, n_layers_dec, n_max_nodes)
+        #self.decoder = ImprovedDecoder(latent_dim, hidden_dim_dec, n_layers_dec, n_max_nodes)
 
     def forward(self, data):
         x_g = self.encoder(data)
