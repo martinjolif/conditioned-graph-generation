@@ -51,7 +51,7 @@ parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate for th
 parser.add_argument('--dropout', type=float, default=0.0, help="Dropout rate (fraction of nodes to drop) to prevent overfitting (default: 0.0)")
 
 # Batch size for training
-parser.add_argument('--batch-size', type=int, default=256, help="Batch size for training, controlling the number of samples per gradient update (default: 256)")
+parser.add_argument('--batch-size', type=int, default=64, help="Batch size for training, controlling the number of samples per gradient update (default: 256)")
 
 # Number of epochs for the autoencoder training
 parser.add_argument('--epochs-autoencoder', type=int, default=200, help="Number of training epochs for the autoencoder (default: 200)")
@@ -123,21 +123,15 @@ test_loader = DataLoader(testset, batch_size=args.batch_size, shuffle=False)
 
 # initialize VGAE model
 autoencoder = VariationalAutoEncoder(args.spectral_emb_dim+1, args.hidden_dim_encoder, args.hidden_dim_decoder, args.latent_dim, args.n_layers_encoder, args.n_layers_decoder, args.n_max_nodes).to(device)
-#optimizer = torch.optim.Adam(autoencoder.parameters(), lr=args.lr)
-#scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
-optimizer = torch.optim.AdamW(autoencoder.parameters(), lr=1e-3, weight_decay=1e-5)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=2)
-min_beta = 0.01
-max_beta = 0.05
+optimizer = torch.optim.Adam(autoencoder.parameters(), lr=args.lr)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
+
 
 # Train VGAE model
 if args.train_autoencoder:
     best_val_loss = np.inf
     for epoch in range(1, args.epochs_autoencoder+1):
         autoencoder.train()
-        #beta = min_beta + (max_beta - min_beta) * (epoch / 100)
-        #beta = min(beta, max_beta)
-        #print("beta", beta)
         train_loss_all = 0
         train_count = 0
         train_loss_all_recon = 0
@@ -151,7 +145,6 @@ if args.train_autoencoder:
             train_loss_all_recon += recon.item()
             train_loss_all_kld += kld.item()
             cnt_train+=1
-            torch.nn.utils.clip_grad_norm_(autoencoder.parameters(), max_norm=1.0) #gradient-clipping
             loss.backward()
             train_loss_all += loss.item()
             train_count += torch.max(data.batch)+1
