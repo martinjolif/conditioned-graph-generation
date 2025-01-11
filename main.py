@@ -54,7 +54,7 @@ parser.add_argument('--dropout', type=float, default=0.0, help="Dropout rate (fr
 parser.add_argument('--batch-size', type=int, default=64, help="Batch size for training, controlling the number of samples per gradient update (default: 256)")
 
 # Number of epochs for the autoencoder training
-parser.add_argument('--epochs-autoencoder', type=int, default=200, help="Number of training epochs for the autoencoder (default: 200)")
+parser.add_argument('--epochs-autoencoder', type=int, default=250, help="Number of training epochs for the autoencoder (default: 200)")
 
 # Hidden dimension size for the encoder network
 parser.add_argument('--hidden-dim-encoder', type=int, default=64, help="Hidden dimension size for encoder layers (default: 64)")
@@ -78,7 +78,7 @@ parser.add_argument('--n-layers-decoder', type=int, default=5, help="Number of l
 parser.add_argument('--spectral-emb-dim', type=int, default=10, help="Dimensionality of spectral embeddings for representing graph structures (default: 10)")
 
 # Number of training epochs for the denoising model
-parser.add_argument('--epochs-denoise', type=int, default=100, help="Number of training epochs for the denoising model (default: 100)")
+parser.add_argument('--epochs-denoise', type=int, default=100, help="Number of training epochs for the denoising model (default: 110)")
 
 # Number of timesteps in the diffusion
 parser.add_argument('--timesteps', type=int, default=500, help="Number of timesteps for the diffusion (default: 500)")
@@ -123,9 +123,11 @@ test_loader = DataLoader(testset, batch_size=args.batch_size, shuffle=False)
 
 # initialize VGAE model
 autoencoder = VariationalAutoEncoder(args.spectral_emb_dim+1, args.hidden_dim_encoder, args.hidden_dim_decoder, args.latent_dim, args.n_layers_encoder, args.n_layers_decoder, args.n_max_nodes).to(device)
+# optimizer = torch.optim.AdamW(autoencoder.parameters(), lr=1e-3, weight_decay=1e-5)
 optimizer = torch.optim.Adam(autoencoder.parameters(), lr=args.lr)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
-
+scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=2)
+min_beta = 0.01
+max_beta = 0.05
 
 # Train VGAE model
 if args.train_autoencoder:
