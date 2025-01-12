@@ -256,6 +256,6 @@ class VariationalAutoEncoder(nn.Module):
         kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         loss = recon + beta*kld
         accuracy = ((adj > 0.5).float() == data.A).float().mean()
-        print("accuracy edge prediction", accuracy)
+        #print("accuracy edge prediction", accuracy)
 
         return loss, recon, kld
