@@ -12,22 +12,19 @@ model.eval()
 
 def bert_encoding_from_graph_text_description(graph_text_description):
     "return the embedding of a graph description with a shape of "
-    encoding = tokenizer.batch_encode_plus([graph_text_description],  # List of input texts
-                                           padding=True,  # Pad to the maximum sequence length
-                                           truncation=True,  # Truncate to the maximum sequence length if necessary
-                                           return_tensors='pt',  # Return PyTorch tensors
-                                           add_special_tokens=True  # Add special tokens CLS and SEP
-                                           )
-    input_ids = encoding['input_ids']
-    attention_mask = encoding['attention_mask']
+    encoded = tokenizer(graph_text_description,
+                        padding=True,
+                        truncation=True,
+                        max_length=512,
+                        return_tensors='pt')
 
+    # Get the embeddings
     with torch.no_grad():
-        outputs = model(input_ids, attention_mask=attention_mask)
-        #sentence_embeddings = outputs.last_hidden_state.mean(dim=1)
-        # 0 refers to the first token [CLS] which is a special token used to represent the entire sentence
-        sentence_embeddings = outputs.last_hidden_state[:,0,:]
+        outputs = model(**encoded)
+        # Use the [CLS] token embedding (first token)
+        sentence_embedding = outputs.last_hidden_state[:, 0, :]
 
-    return sentence_embeddings
+    return sentence_embedding.squeeze(1)
 
 
 def bert_encoding_from_graph_filename(file):

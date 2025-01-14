@@ -50,6 +50,12 @@ def preprocess_dataset(dataset, n_max_nodes, spectral_emb_dim, text_embedding_me
                 elif text_embedding_method == "bert_text_encoder":
                     feats_stats = bert_encoding_from_graph_text_description(desc)
                     feats_stats = torch.FloatTensor(feats_stats).unsqueeze(0)
+                elif text_embedding_method == "extract_numbers_and_bert_text_encoder":
+                    feats_stats_extract_numbers = extract_numbers(desc)
+                    feats_stats_extract_numbers = torch.FloatTensor(feats_stats_extract_numbers).unsqueeze(0)
+                    feats_stats_bert = bert_encoding_from_graph_text_description(desc)
+                    feats_stats_bert = torch.FloatTensor(feats_stats_bert)
+                    feats_stats = torch.cat((feats_stats_extract_numbers, feats_stats_bert), 1)
 
                 data_lst.append(Data(stats=feats_stats, filename = graph_id))
             fr.close()
@@ -148,6 +154,13 @@ def preprocess_dataset(dataset, n_max_nodes, spectral_emb_dim, text_embedding_me
                 elif text_embedding_method == "bert_text_encoder":
                     feats_stats = bert_encoding_from_graph_filename(fstats)
                     feats_stats = torch.FloatTensor(feats_stats).unsqueeze(0)
+                elif text_embedding_method == "extract_numbers_and_bert_text_encoder":
+                    feats_stats_extract_numbers = extract_feats(fstats)
+                    feats_stats_extract_numbers = torch.FloatTensor(feats_stats_extract_numbers).unsqueeze(0)
+                    feats_stats_bert = bert_encoding_from_graph_filename(fstats)
+                    feats_stats_bert = torch.FloatTensor(feats_stats_bert)
+                    feats_stats = torch.cat((feats_stats_extract_numbers, feats_stats_bert), 1)
+
 
                 data_lst.append(Data(x=x, edge_index=edge_index, A=adj, stats=feats_stats, filename = filen))
             torch.save(data_lst, filename)

@@ -23,8 +23,8 @@ from torch_geometric.loader import DataLoader
 
 from autoencoder import VariationalAutoEncoder
 from denoise_model import DenoiseNN, p_losses, sample
-from utils import linear_beta_schedule, construct_nx_from_adj, preprocess_dataset
-
+from utils import linear_beta_schedule, construct_nx_from_adj, preprocess_dataset, sigmoid_beta_schedule, \
+    cosine_beta_schedule, quadratic_beta_schedule
 
 from torch.utils.data import Subset
 np.random.seed(13)
@@ -48,13 +48,13 @@ parser = argparse.ArgumentParser(description='Configuration for the NeuralGraphG
 parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate for the optimizer, typically a small float value (default: 0.001)")
 
 # Dropout rate
-parser.add_argument('--dropout', type=float, default=0.0, help="Dropout rate (fraction of nodes to drop) to prevent overfitting (default: 0.0)")
+parser.add_argument('--dropout', type=float, default=0.1, help="Dropout rate (fraction of nodes to drop) to prevent overfitting (default: 0.0)")
 
 # Batch size for training
 parser.add_argument('--batch-size', type=int, default=64, help="Batch size for training, controlling the number of samples per gradient update (default: 256)")
 
 # Number of epochs for the autoencoder training
-parser.add_argument('--epochs-autoencoder', type=int, default=250, help="Number of training epochs for the autoencoder (default: 200)")
+parser.add_argument('--epochs-autoencoder', type=int, default=200, help="Number of training epochs for the autoencoder (default: 200)")
 
 # Hidden dimension size for the encoder network
 parser.add_argument('--hidden-dim-encoder', type=int, default=64, help="Hidden dimension size for encoder layers (default: 64)")
@@ -99,10 +99,10 @@ parser.add_argument('--train-denoiser', action='store_true', default=True, help=
 parser.add_argument('--dim-condition', type=int, default=128, help="Dimensionality of conditioning vectors for conditional generation (default: 128)")
 
 # Method used to embed the text (extract_numbers: to only extract the numbers from the text, clip_text_encoder: to encode the text with the clip text encoder)
-parser.add_argument('--text-embedding-method', type=str, default='extract_numbers', help="Method to embed the text (extract_numbers: to only extract the numbers from the text, clip_text_encoder: to encode the text with the clip text encoder)")
+parser.add_argument('--text-embedding-method', type=str, default='extract_numbers_and_bert_text_encoder', help="Method to embed the text (extract_numbers: to only extract the numbers from the text, clip_text_encoder: to encode the text with the clip text encoder)")
 
 # Number of conditions used in conditional vector (number of properties)
-parser.add_argument('--n-condition', type=int, default=7, help="Number of distinct condition properties used in conditional vector (default: 7)")
+parser.add_argument('--n-condition', type=int, default=775, help="Number of distinct condition properties used in conditional vector (default: 7)")
 
 args = parser.parse_args()
 
@@ -122,12 +122,10 @@ test_loader = DataLoader(testset, batch_size=args.batch_size, shuffle=False)
 
 
 # initialize VGAE model
-autoencoder = VariationalAutoEncoder(args.spectral_emb_dim+1, args.hidden_dim_encoder, args.hidden_dim_decoder, args.latent_dim, args.n_layers_encoder, args.n_layers_decoder, args.n_max_nodes).to(device)
+autoencoder = VariationalAutoEncoder(args.spectral_emb_dim+1, args.hidden_dim_encoder, args.hidden_dim_decoder, args.latent_dim, args.n_layers_encoder, args.n_layers_decoder, args.n_max_nodes, args.n_condition).to(device)
 # optimizer = torch.optim.AdamW(autoencoder.parameters(), lr=1e-3, weight_decay=1e-5)
 optimizer = torch.optim.Adam(autoencoder.parameters(), lr=args.lr)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=2)
-min_beta = 0.01
-max_beta = 0.05
 
 # Train VGAE model
 if args.train_autoencoder:
@@ -208,7 +206,8 @@ posterior_variance = betas * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
 # initialize denoising model
 denoise_model = DenoiseNN(input_dim=args.latent_dim, hidden_dim=args.hidden_dim_denoise, n_layers=args.n_layers_denoise, cond_input_dim=args.n_condition, d_cond=args.dim_condition).to(device)
 optimizer = torch.optim.Adam(denoise_model.parameters(), lr=args.lr)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
+#scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=2)
 
 # Train denoising model
 if args.train_denoiser:
@@ -252,7 +251,7 @@ if args.train_denoiser:
                 'optimizer' : optimizer.state_dict(),
             }, 'denoise_model.pth.tar')
 else:
-    checkpoint = torch.load('denoise_model.pth.tar')
+    checkpoint = torch.load('denoise_model.pth.tar', weights_only=False)
     denoise_model.load_state_dict(checkpoint['state_dict'])
     print(f"Denoising model loaded from file")
 

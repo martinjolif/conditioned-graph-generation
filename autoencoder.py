@@ -34,55 +34,6 @@ class Decoder(nn.Module):
         return adj
 
 
-class ImprovedDecoder(nn.Module):
-    def __init__(self, latent_dim, hidden_dim, n_layers, n_nodes):
-        super(ImprovedDecoder, self).__init__()
-        self.n_nodes = n_nodes
-        self.latent_dim = latent_dim
-
-        # Wider network for better expressivity
-        self.mlp = nn.Sequential(
-            nn.Linear(latent_dim, hidden_dim * 2),
-            nn.LayerNorm(hidden_dim * 2),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            *[nn.Sequential(
-                nn.Linear(hidden_dim * 2, hidden_dim * 2),
-                nn.LayerNorm(hidden_dim * 2),
-                nn.ReLU(),
-                nn.Dropout(0.1)
-            ) for _ in range(n_layers - 1)],
-            nn.Linear(hidden_dim * 2, n_nodes * n_nodes)
-        )
-
-        # Learnable initial temperature
-        self.temperature = nn.Parameter(torch.ones(1) * 0.5)
-
-    def forward(self, x):
-        batch_size = x.size(0)
-
-        # Get logits
-        logits = self.mlp(x)
-        logits = logits.view(batch_size, self.n_nodes, self.n_nodes)
-
-        # Ensure symmetry
-        logits = (logits + logits.transpose(1, 2)) / 2
-
-        # Apply sigmoid with temperature
-        probs = torch.sigmoid(logits / torch.clamp(self.temperature, min=0.1))
-
-        # During training, use straight-through estimator with threshold at 0.5
-        if self.training:
-            adj_hard = (probs > 0.5).float()
-            adj = adj_hard.detach() - probs.detach() + probs
-        else:
-            adj = (probs > 0.5).float()
-
-        # Zero out diagonal
-        adj = adj * (1 - torch.eye(self.n_nodes, device=x.device))
-
-        return adj
-
 class GIN(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim, latent_dim, n_layers, dropout=0.2):
         super().__init__()
@@ -158,7 +109,7 @@ class ChebEncoder(torch.nn.Module):
 
 #training much slower
 class GATEncoder(torch.nn.Module):
-    def __init__(self, input_dim, hidden_dim, latent_dim, n_layers, dropout=0.2, heads=4):
+    def __init__(self, input_dim, hidden_dim, latent_dim, n_layers, n_condition, dropout=0.2, heads=4):
         super().__init__()
         self.dropout = dropout
         self.convs = torch.nn.ModuleList()
@@ -170,8 +121,8 @@ class GATEncoder(torch.nn.Module):
             self.convs.append(GATConv(hidden_dim * heads, hidden_dim, heads=heads, concat=True))
 
         # Batch normalization and fully connected layer with conditioning
-        self.bn = nn.BatchNorm1d(hidden_dim * heads + 7)  # 7 is the conditioning vector size
-        self.fc = nn.Linear(hidden_dim * heads + 7, latent_dim)  # Latent dimension output
+        self.bn = nn.BatchNorm1d(hidden_dim * heads + n_condition)  # 7 is the conditioning vector size
+        self.fc = nn.Linear(hidden_dim * heads + n_condition, latent_dim)  # Latent dimension output
 
         self.leaky_relu = nn.LeakyReLU(0.2)
         self.dropout = nn.Dropout(dropout)
@@ -201,12 +152,12 @@ class GATEncoder(torch.nn.Module):
 
 # Variational Autoencoder
 class VariationalAutoEncoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim_enc, hidden_dim_dec, latent_dim, n_layers_enc, n_layers_dec, n_max_nodes):
+    def __init__(self, input_dim, hidden_dim_enc, hidden_dim_dec, latent_dim, n_layers_enc, n_layers_dec, n_max_nodes, n_condition):
         super(VariationalAutoEncoder, self).__init__()
         self.n_max_nodes = n_max_nodes
         self.input_dim = input_dim
         #self.encoder = GIN(input_dim, hidden_dim_enc, hidden_dim_enc, n_layers_enc)
-        self.encoder = GATEncoder(input_dim, hidden_dim_enc, hidden_dim_enc, n_layers_enc)
+        self.encoder = GATEncoder(input_dim, hidden_dim_enc, hidden_dim_enc, n_layers_enc, n_condition)
         self.fc_mu = nn.Linear(hidden_dim_enc, latent_dim)
         self.fc_logvar = nn.Linear(hidden_dim_enc, latent_dim)
         self.decoder = Decoder(latent_dim, hidden_dim_dec, n_layers_dec, n_max_nodes)
@@ -255,7 +206,7 @@ class VariationalAutoEncoder(nn.Module):
         recon = F.binary_cross_entropy(adj, data.A, reduction='mean')
         kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         loss = recon + beta*kld
-        accuracy = ((adj > 0.5).float() == data.A).float().mean()
+        #accuracy = ((adj > 0.5).float() == data.A).float().mean()
         #print("accuracy edge prediction", accuracy)
 
         return loss, recon, kld
