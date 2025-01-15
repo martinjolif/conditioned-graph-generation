@@ -113,6 +113,7 @@ class GATEncoder(torch.nn.Module):
         super().__init__()
         self.dropout = dropout
         self.convs = torch.nn.ModuleList()
+        self.n_condition = n_condition
 
         # Initialize the first GAT layer with multi-head attention
         self.convs.append(GATConv(input_dim, hidden_dim, heads=heads, concat=True))
@@ -131,6 +132,7 @@ class GATEncoder(torch.nn.Module):
         edge_index = data.edge_index
         x = data.x
         cond = data.stats
+        cond = cond.reshape(cond.shape[0], self.n_condition)
 
         # Apply each GATConv layer with LeakyReLU and dropout
         for conv in self.convs:
