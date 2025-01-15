@@ -175,4 +175,4 @@ data/
 
 #output file
 output.csv
-*.png
+graph_outputs/

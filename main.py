@@ -23,8 +23,8 @@ from torch_geometric.loader import DataLoader
 
 from autoencoder import VariationalAutoEncoder
 from denoise_model import DenoiseNN, p_losses, sample
-from utils import linear_beta_schedule, construct_nx_from_adj, preprocess_dataset
-
+from utils import linear_beta_schedule, construct_nx_from_adj, preprocess_dataset, sigmoid_beta_schedule, \
+    cosine_beta_schedule, quadratic_beta_schedule
 
 from torch.utils.data import Subset
 np.random.seed(13)
@@ -123,7 +123,7 @@ test_loader = DataLoader(testset, batch_size=args.batch_size, shuffle=False)
 
 
 # initialize VGAE model
-autoencoder = VariationalAutoEncoder(args.spectral_emb_dim+1, args.hidden_dim_encoder, args.hidden_dim_decoder, args.latent_dim, args.n_layers_encoder, args.n_layers_decoder, args.n_max_nodes).to(device)
+autoencoder = VariationalAutoEncoder(args.spectral_emb_dim+1, args.hidden_dim_encoder, args.hidden_dim_decoder, args.latent_dim, args.n_layers_encoder, args.n_layers_decoder, args.n_max_nodes, args.n_condition).to(device)
 # optimizer = torch.optim.AdamW(autoencoder.parameters(), lr=1e-3, weight_decay=1e-5)
 optimizer = torch.optim.Adam(autoencoder.parameters(), lr=args.lr)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=2)
@@ -207,7 +207,8 @@ posterior_variance = betas * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
 # initialize denoising model
 denoise_model = DenoiseNN(input_dim=args.latent_dim, hidden_dim=args.hidden_dim_denoise, n_layers=args.n_layers_denoise, cond_input_dim=args.n_condition, d_cond=args.dim_condition).to(device)
 optimizer = torch.optim.Adam(denoise_model.parameters(), lr=args.lr)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
+#scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=2)
 
 # Train denoising model
 if args.train_denoiser:
@@ -251,7 +252,7 @@ if args.train_denoiser:
                 'optimizer' : optimizer.state_dict(),
             }, 'denoise_model.pth.tar')
 else:
-    checkpoint = torch.load('denoise_model.pth.tar')
+    checkpoint = torch.load('denoise_model.pth.tar', weights_only=False)
     denoise_model.load_state_dict(checkpoint['state_dict'])
     print(f"Denoising model loaded from file")
 

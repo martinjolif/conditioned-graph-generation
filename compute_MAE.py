@@ -230,10 +230,10 @@ def main():
         y_pred = calculate_stats_graph(G)
         y_ground_truth = loaded_dict[graph_id][0]
         absolute_errors = [abs(a - b) for a, b in zip(y_pred, y_ground_truth)]
-        mae_st = sum(absolute_errors) / len(absolute_errors)
+        mae_st = np.mean(absolute_errors)
         MAE += mae_st
 
-    print("MAE", MAE)
+    print("MAE", MAE / (len(graphs)))
 
 if __name__ == '__main__':
     main()
