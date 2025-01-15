@@ -51,7 +51,7 @@ parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate for th
 parser.add_argument('--dropout', type=float, default=0.1, help="Dropout rate (fraction of nodes to drop) to prevent overfitting (default: 0.0)")
 
 # Batch size for training
-parser.add_argument('--batch-size', type=int, default=64, help="Batch size for training, controlling the number of samples per gradient update (default: 256)")
+parser.add_argument('--batch-size', type=int, default=128, help="Batch size for training, controlling the number of samples per gradient update (default: 256)")
 
 # Number of epochs for the autoencoder training
 parser.add_argument('--epochs-autoencoder', type=int, default=200, help="Number of training epochs for the autoencoder (default: 200)")
@@ -99,10 +99,10 @@ parser.add_argument('--train-denoiser', action='store_true', default=True, help=
 parser.add_argument('--dim-condition', type=int, default=128, help="Dimensionality of conditioning vectors for conditional generation (default: 128)")
 
 # Method used to embed the text (extract_numbers: to only extract the numbers from the text, clip_text_encoder: to encode the text with the clip text encoder)
-parser.add_argument('--text-embedding-method', type=str, default='extract_numbers_and_bert_text_encoder', help="Method to embed the text (extract_numbers: to only extract the numbers from the text, clip_text_encoder: to encode the text with the clip text encoder)")
+parser.add_argument('--text-embedding-method', type=str, default='extract_numbers', help="Method to embed the text (extract_numbers: to only extract the numbers from the text, clip_text_encoder: to encode the text with the clip text encoder)")
 
 # Number of conditions used in conditional vector (number of properties)
-parser.add_argument('--n-condition', type=int, default=775, help="Number of distinct condition properties used in conditional vector (default: 7)")
+parser.add_argument('--n-condition', type=int, default=7, help="Number of distinct condition properties used in conditional vector (default: 7)")
 
 args = parser.parse_args()
 
@@ -221,7 +221,7 @@ if args.train_denoiser:
             optimizer.zero_grad()
             x_g = autoencoder.encode(data)
             t = torch.randint(0, args.timesteps, (x_g.size(0),), device=device).long()
-            loss = p_losses(denoise_model, x_g, t, data.stats, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod, loss_type="huber")
+            loss = p_losses(denoise_model, x_g, t, data.stats, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod, loss_type="l1")
             loss.backward()
             train_loss_all += x_g.size(0) * loss.item()
             train_count += x_g.size(0)
@@ -234,7 +234,7 @@ if args.train_denoiser:
             data = data.to(device)
             x_g = autoencoder.encode(data)
             t = torch.randint(0, args.timesteps, (x_g.size(0),), device=device).long()
-            loss = p_losses(denoise_model, x_g, t, data.stats, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod, loss_type="huber")
+            loss = p_losses(denoise_model, x_g, t, data.stats, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod, loss_type="l1")
             val_loss_all += x_g.size(0) * loss.item()
             val_count += x_g.size(0)
 
