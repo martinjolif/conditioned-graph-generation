@@ -23,6 +23,8 @@ to $z_T$ . The denoising process is conditioned on the encoding of the vector th
 contains the graph’s properties. Then, the output of the diffusion model is passed on to the decoder
 which generates a graph.
 
+See the report to have more details on our model.
+
 
 
 ### Projet structure:
